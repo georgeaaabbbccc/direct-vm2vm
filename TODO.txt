@@ -1,0 +1,67 @@
+DONE:
+1. OVS direct path detection: ovs is able to recognize when a direct path between two ports exists.
+	a) It prints a message indicating that a direct path was found, additionally it creates a 
+		pair of rings. Thec old ports are not modified.
+		
+		Direct path: 
+			A path (A to B) to be considered direct MUST meet the following rules
+				I)	in_port=A action=output_B and in_port=B action=output_A must exists
+					IE. Only birectional links
+				II) There is not any other rule that uses A or B as input port.
+				III) There is not any ohter rule that uses A or B as output_port.
+				IV) Ports types has to be dpdkr [NOT IMPLEMENTED!!!]
+		
+	b) The used algotithm is (probably) very inefficient, it's a stateless algorithm, 
+		it is necessary to scan the whole set of rules each time a rule is inserted
+	c) Only rules in table 0 are considered (I think that direct paths are always
+		saved in that table)
+	d) The algorithm can not detect when a direct rule is deleted, better, i can detect that 
+		are not more direct rules, but not that a specific direct path was modified 
+		This because direct paths are not saved. (Stateful algorithm could be a solution for
+		many of the problems)
+
+2. OVS direct links: The creation of direct links by the user was supported, 
+	I said was because on my current implementation I have thrown away this feature, why?
+		Direct ports created by the user are not related to our work, they are a different kind
+		of port, in our work the automatic ports that are created has to be shown to the world
+		as a standard dpdkr port. (Name and type should not change when ovs is queried)
+		
+3. DPDK ivshmem hotplug was partially supported, the hotplug should be done before the DPDK 
+	application was started, this because the pci device scanning was tied to the rte_eal 
+	initialization. DPDK was modified in order to support ivshmem hotplug once the application
+	had been started
+		a) libudev was used to get notified when a new ivshmem device was connected.
+			Why dpdk does not already use it to parse the dpdk devices?
+		b) Once a new device is detected its memory is mapped into the dpdk memory, some 
+			modifications to avoid overwriting previous memzones were added.
+			Masking hotplug HAS to be implemented due to deadlocking situations are 
+			a risk if the device is plugged in a precise instant of time.
+		c) There is not support for (hot)unplugging, meanly because I have some architecture 
+			and design concerns about it.
+			(If a ring that is being used is unplugged. Crash?), I would say yes.
+			Memzonefree is already upstream, ring_free was proposed, how can them be used ?
+			How to notify the application that a new ivshmem (memzones, rings, mempools) 
+			has been connected? (necessary?)
+		Finally, I think DPDK guys have not implemented it because of
+			1. Maybe it not useful to most of the applications
+			2. They are looking for a elegant implementation.
+		Aditionally, it is related to our work but does not fit our exactly requirements.
+			
+4. ring remapping was finally implemented, a new ivshmem device indicating that a ring
+	has to be remapped it hotplugged. 
+	- rings as to be aligned to 4kB. (Not totally clear why)
+		Inefficient use of memory?
+		Cache miss rate should not be a problem, rings are saved in huge pages!
+		
+	- block mechanishms have not been implemented, the remapping is done immediately the device
+		is plugged. (inconsistency conditions are a HUGE risk)
+
+TODO:
+-	OVS should create a pair of rings once a direct path is found.
+		create the rings and the command lines to remmap them.
+		[Working on!]
+-	How to disconnect old ports from datapath?
+		free them, or a part of them?
+-	How to count statistics
+- 	Who has ovs to nofity once a direct path is found?
+- 	
